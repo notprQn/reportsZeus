@@ -75,3 +75,33 @@ button, label.fileUpload {
 button i, label.fileUpload i {
   margin-right: 5px;
 }
+
+.image-container {
+  position: relative;
+}
+
+.image-buttons {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+}
+
+.image-container:hover .image-buttons {
+  display: block;
+}
+
+.hover-container {
+  position: relative;
+}
+
+.hover-button {
+  position: absolute;
+  top: -50px;
+  left: 0;
+  display: none;
+}
+
+.hover-container:hover .hover-button {
+  display: block;
+}

@@ -3,6 +3,7 @@ import Modal from 'react-modal';
 import './App.css';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image';
 
 function App() {
   const [scenarios, setScenarios] = useState([]);
@@ -15,8 +16,6 @@ function App() {
   const [when, setWhen] = useState('Quando ');
   const [and, setAnd] = useState('E ');
   const [then, setThen] = useState('Então ');
-
-  const pdf = new jsPDF('landscape');
 
   const inputRef = useRef([]);
 
@@ -67,10 +66,16 @@ function App() {
     setModalIsOpen(false);
   };
 
-  const handleTextChange = (e, scenarioIndex, field) => {
+  const handleTextChange = (e, index, field) => {
+    const text = e.target.value;
     const newScenarios = [...scenarios];
-    newScenarios[scenarioIndex][field] = e.target.textContent;
-    setScenarios(newScenarios);
+  
+    if (index >= 0 && index < newScenarios.length) {
+      newScenarios[index][field] = text;
+      setScenarios(newScenarios);
+    } else {
+      console.error(`Invalid index: ${index}`);
+    }
   };
 
   const handleRemoveImage = (scenarioIndex, imageIndex) => {
@@ -80,16 +85,14 @@ function App() {
   };
 
   const handleImageChange = (e, scenarioIndex, imageIndex) => {
-    const files = Array.from(e.target.files);
-    const newScenarios = [...scenarios];
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        newScenarios[scenarioIndex].images.push(reader.result);
-        setScenarios(newScenarios);
-      };
-      reader.readAsDataURL(file);
-    });
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const newScenarios = [...scenarios];
+      newScenarios[scenarioIndex].images[imageIndex] = reader.result;
+      setScenarios(newScenarios);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveScenario = (index) => {
@@ -98,41 +101,48 @@ function App() {
     setScenarios(newScenarios);
   };
 
-  const generatePDF = () => {
-    // Hide buttons
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(button => button.style.display = 'none');
+  const downloadPdf = () => {
+    const pdf = new jsPDF();
   
-    // Select the body of the document
-    const element = document.body;
+    scenarios.forEach((scenario, index) => {
+      // Adicionar título do cenário com estilo
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(100, 149, 237); // Cor azul claro (LightSkyBlue)
+      pdf.text(20, 20, `${scenario.title}`);
   
-    html2canvas(element).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4'); // Initialize pdf first
-    
-      const imgProps= pdf.getImageProperties(imgData); // Then get image properties
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    
-      let heightLeft = imgProps.height;
-      let position = 0;
-    
-      while (heightLeft >= 0) {
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pdfHeight;
-        position -= pdfHeight;
-    
-        if (heightLeft > 0) {
-          pdf.addPage();
-        }
+      // Redefinir estilos para valores padrão
+      pdf.setFont('helvetica');
+      pdf.setTextColor(0);
+  
+      // Adicionar given, when, and, then
+      pdf.setFontSize(14);
+      pdf.text(20, 30, `${scenario.given}`);
+      pdf.text(20, 40, `${scenario.when}`);
+      pdf.text(20, 50, `${scenario.and}`);
+      pdf.text(20, 60, `${scenario.then}`);
+  
+      // Adicionar imagens com largura próxima à página
+      scenario.images.forEach((image, imageIndex) => {
+        const yPos = 70 + imageIndex * 60;
+        const imageWidth = pdf.internal.pageSize.getWidth() - 50; // Largura da imagem
+        const imageHeight = 50; // Altura da imagem
+        pdf.addImage(image, 'PNG', 20, yPos, imageWidth, imageHeight);
+      });
+  
+      // Adicionar quebra de página após cada cenário (exceto o último)
+      if (index < scenarios.length - 1) {
+        pdf.addPage();
       }
-    
-      pdf.save("download.pdf");
-    
-      // Show buttons
-      buttons.forEach(button => button.style.display = '');
     });
+  
+    // Salvar o PDF
+    pdf.save('download.pdf');
   };
+
+
+
+
 
   return (
     
@@ -171,27 +181,72 @@ function App() {
       </Modal>
       
       {scenarios.map((scenario, index) => (
-      <div key={index} >
-        <h2 contentEditable={true} onBlur={e => handleTextChange(e, index, 'title')}>
-          {scenario.title} 
-        </h2>
-        <button onClick={() => handleRemoveScenario(index)}>Remove Scenario {index+1}</button>
-        <p contentEditable={true} onBlur={e => handleTextChange(e, index, 'given')}>
-          {scenario.given.split('\n').map((line, i) => <span key={i}>{line}<br /></span>)}
-        </p>
-        <p contentEditable={true} onBlur={e => handleTextChange(e, index, 'when')}>
-          {scenario.when.split('\n').map((line, i) => <span key={i}>{line}<br /></span>)}
-        </p>
-        <p contentEditable={true} onBlur={e => handleTextChange(e, index, 'and')}>
-          {scenario.and.split('\n').map((line, i) => <span key={i}>{line}<br /></span>)}
-        </p>
-        <p contentEditable={true} onBlur={e => handleTextChange(e, index, 'then')}>
-          {scenario.then.split('\n').map((line, i) => <span key={i}>{line}<br /></span>)}
-        </p>
-        
+      <div key={index} id='content'>
+        <div className = "hover-container">
+          <div className="hover-button">
+            <button onClick={() => handleRemoveScenario(index)}>Remove Scenario {index+1}</button>
+          </div>
+              
+          <textarea 
+            value={scenario.title} 
+            onChange={e => handleTextChange(e, index, 'title')} 
+            style={{
+              width: '100%',
+              minHeight: '5px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '10px'
+            }}
+          />
+          <textarea 
+            value={scenario.given} 
+            onChange={e => handleTextChange(e, index, 'given')} 
+            style={{
+              width: '100%',
+              minHeight: '5px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '10px'
+            }}
+          />
+          <textarea 
+            value={scenario.when} 
+            onChange={e => handleTextChange(e, index, 'when')} 
+            style={{
+              width: '100%',
+              minHeight: '5px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '10px'
+            }}
+          />
+          <textarea 
+            value={scenario.and} 
+            onChange={e => handleTextChange(e, index, 'and')} 
+            style={{
+              width: '100%',
+              minHeight: '5px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '10px'
+            }}
+          />
+          <textarea 
+            value={scenario.then} 
+            onChange={e => handleTextChange(e, index, 'then')} 
+            style={{
+              width: '100%',
+              minHeight: '5px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '10px'
+            }}
+          />
+        </div> 
         {scenario.images.map((image, imageIndex) => (
-          <div key={imageIndex}>
-            <img src={image} alt="" />
+          <div key={imageIndex} className="image-container">
+          <img src={image} alt="" />
+          <div className="image-buttons">
             <button onClick={() => handleRemoveImage(index, imageIndex)}>
               <i className="fa fa-trash"></i>
             </button>
@@ -200,11 +255,12 @@ function App() {
               <i className="fa fa-pencil-alt"></i>
             </button>
           </div>
+        </div>
         ))}
       </div>
     ))}
     <button onClick={openModal}>Create Scenario</button>
-    <button onClick={generatePDF}>Generate PDF</button>
+    <button onClick={downloadPdf}>Generate PDF</button>
     </div>
   );
 }
