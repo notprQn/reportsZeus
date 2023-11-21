@@ -2,8 +2,6 @@ import React, { useState, useRef } from 'react';
 import Modal from 'react-modal';
 import './App.css';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import domtoimage from 'dom-to-image';
 
 function App() {
   const [scenarios, setScenarios] = useState([]);
@@ -102,66 +100,99 @@ function App() {
   };
 
   const downloadPdf = () => {
-  const pdf = new jsPDF();
-
-  scenarios.forEach((scenario, index) => {
-    // Adicionar título do cenário com estilo
-    pdf.setFontSize(22);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(100, 149, 237); // Cor azul claro (LightSkyBlue)
-
-    const titleLines = pdf.splitTextToSize(`${scenario.title}`, pdf.internal.pageSize.getWidth() - 20);
-    pdf.text(20, 20, titleLines);
-
-    // Redefinir estilos para valores padrão
-    pdf.setFont('helvetica');
-    pdf.setTextColor(0);
-
-    // Adicionar given, when, and, then
-    pdf.setFontSize(12);
-
-    const givenLines = pdf.splitTextToSize(`${scenario.given}`, pdf.internal.pageSize.getWidth() - 20);
-    const whenLines = pdf.splitTextToSize(`${scenario.when}`, pdf.internal.pageSize.getWidth() - 20);
-    const andLines = pdf.splitTextToSize(`${scenario.and}`, pdf.internal.pageSize.getWidth() - 20);
-    const thenLines = pdf.splitTextToSize(`${scenario.then}`, pdf.internal.pageSize.getWidth() - 20);
-
-    // Função auxiliar para adicionar texto ao PDF
-    const addTextToPdf = (lines, initialY) => {
-      lines.forEach((line, lineIndex) => {
-        const yPos = initialY + lineIndex * 10;
-        pdf.text(20, yPos, line);
+    const pdf = new jsPDF();
+  
+    scenarios.forEach((scenario, index) => {
+      let offsetY = 30; // Move a declaração da variável para o escopo mais amplo
+  
+      // Adicionar título do cenário com estilo
+      pdf.setFontSize(22);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(100, 149, 237); // Cor azul claro (LightSkyBlue)
+  
+      const titleLines = pdf.splitTextToSize(`${scenario.title}`, pdf.internal.pageSize.getWidth() - 20);
+      pdf.text(20, 20, titleLines);
+  
+      // Redefinir estilos para valores padrão
+      pdf.setFont('helvetica');
+      pdf.setTextColor(0);
+  
+      // Adicionar given, when, and, then
+      pdf.setFontSize(12);
+  
+      const givenLines = pdf.splitTextToSize(`${scenario.given}`, pdf.internal.pageSize.getWidth() - 20);
+      const whenLines = pdf.splitTextToSize(`${scenario.when}`, pdf.internal.pageSize.getWidth() - 20);
+      const andLines = pdf.splitTextToSize(`${scenario.and}`, pdf.internal.pageSize.getWidth() - 20);
+      const thenLines = pdf.splitTextToSize(`${scenario.then}`, pdf.internal.pageSize.getWidth() - 20);
+  
+      // Função auxiliar para adicionar texto ao PDF
+      const addTextToPdf = (lines, initialY) => {
+        lines.forEach((line, lineIndex) => {
+          const yPos = initialY + lineIndex * 10;
+          pdf.text(20, yPos, line);
+        });
+        return lines.length * 10;
+      };
+  
+      // Adicionar given, when, and, then ao PDF
+      offsetY += addTextToPdf(givenLines, offsetY);
+      offsetY += addTextToPdf(whenLines, offsetY);
+      offsetY += addTextToPdf(andLines, offsetY);
+      offsetY += addTextToPdf(thenLines, offsetY);
+  
+      // Adicionar imagens com largura próxima à página
+      const resizeImage = (img, maxWidth, maxHeight) => {
+        const aspectRatio = img.width / img.height;
+        let newWidth = img.width;
+        let newHeight = img.height;
+  
+        if (newWidth > maxWidth) {
+          newWidth = maxWidth;
+          newHeight = newWidth / aspectRatio;
+        }
+  
+        if (newHeight > maxHeight) {
+          newHeight = maxHeight;
+          newWidth = newHeight * aspectRatio;
+        }
+  
+        return { width: newWidth, height: newHeight };
+      };
+  
+      const imagePromises = scenario.images.map((image, imageIndex) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.src = image;
+          img.onload = function () {
+            const pageWidth = pdf.internal.pageSize.getWidth() - 40;
+            const pageHeight = pdf.internal.pageSize.getHeight() - 40;
+  
+            const { width, height } = resizeImage(img, pageWidth, pageHeight);
+  
+            const yPos = offsetY + imageIndex * height + imageIndex * 10;
+            pdf.addImage(image, 'PNG', 20, yPos, width, height);
+  
+            resolve();
+          };
+          img.onerror = reject;
+        });
       });
-      return lines.length * 10;
-    };
-
-    // Adicionar given, when, and, then ao PDF
-    let offsetY = 30;
-    offsetY += addTextToPdf(givenLines, offsetY);
-    offsetY += addTextToPdf(whenLines, offsetY);
-    offsetY += addTextToPdf(andLines, offsetY);
-    offsetY += addTextToPdf(thenLines, offsetY);
-
-    // Adicionar imagens com largura próxima à página
-    scenario.images.forEach((image, imageIndex) => {
-      const yPos = offsetY + imageIndex * 60 + imageIndex * 10;
-      const imageWidth = pdf.internal.pageSize.getWidth() - 50; // Largura da imagem
-      const imageHeight = 65; // Altura da imagem
-      pdf.addImage(image, 'PNG', 20, yPos, imageWidth, imageHeight);
+  
+      Promise.all(imagePromises)
+        .then(() => {
+          // Save the PDF after all images have loaded and been added
+          pdf.save('download.pdf');
+        })
+        .catch((error) => {
+          console.error('Error loading images:', error);
+        });
+  
+      // Adicionar quebra de página após cada cenário (exceto o último)
+      if (index < scenarios.length - 1) {
+        pdf.addPage();
+      }
     });
-
-    // Adicionar quebra de página após cada cenário (exceto o último)
-    if (index < scenarios.length - 1) {
-      pdf.addPage();
-    }
-  });
-
-  // Salvar o PDF
-  pdf.save('download.pdf');
-};
-
-
-
-
+  };
 
   return (
     
