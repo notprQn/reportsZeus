@@ -99,6 +99,35 @@ function App() {
     setScenarios(newScenarios);
   };
 
+  const handleFileSelect = (event, scenarioIndex) => {
+    const files = event.target.files;
+  
+    // Verifique se há algum arquivo selecionado
+    if (files.length === 0) {
+      return;
+    }
+  
+    const newImages = Array.from(files).map(file => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+  
+        reader.onloadend = () => {
+          resolve(reader.result);
+        };
+  
+        reader.readAsDataURL(file);
+      });
+    });
+  
+    // Agora, quando todas as promessas são resolvidas, adicione as imagens ao cenário
+    Promise.all(newImages).then((resolvedImages) => {
+      const newScenarios = [...scenarios];
+      newScenarios[scenarioIndex].images.push(...resolvedImages);
+      setScenarios(newScenarios);
+    });
+  };
+  
+
   const downloadPdf = () => {
     const pdf = new jsPDF();
   
@@ -164,8 +193,8 @@ function App() {
           const img = new Image();
           img.src = image;
           img.onload = function () {
-            const pageWidth = pdf.internal.pageSize.getWidth() - 40;
-            const pageHeight = pdf.internal.pageSize.getHeight() - 40;
+            const pageWidth = pdf.internal.pageSize.getWidth() - 100;
+            const pageHeight = pdf.internal.pageSize.getHeight() - 100;
   
             const { width, height } = resizeImage(img, pageWidth, pageHeight);
   
@@ -235,6 +264,17 @@ function App() {
         <div className = "hover-container">
           <div className="hover-button">
             <button onClick={() => handleRemoveScenario(index)}>Remove Scenario {index+1}</button>
+            <div key={index} id='content'>
+            <button onClick={() => document.getElementById(`imageFile-${index}`).click()}>Adicionar Nova Imagem</button>
+            <input
+              type="file"
+              id={`imageFile-${index}`}
+              accept="image/*"
+              onChange={(e) => handleFileSelect(e, index)}
+              style={{ display: 'none' }}
+              multiple
+            />
+          </div>
           </div>
               
           <textarea 
